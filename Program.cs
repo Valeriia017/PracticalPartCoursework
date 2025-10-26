@@ -28,7 +28,7 @@ namespace PracticalPartCoursework
             {"A", "RWE"},  // Максимальні права
             {"B", "REA"},   // Середні права (R,E,A)
             {"C", "R"},     // Мінімальні права (R)
-            {"D", "E"},     // Мінімальні права (E)  
+            {"D", "E"},     // Мінімальні права (E)
             {"E", "RE"}     // Середні права (R,E)
         };
 
@@ -549,6 +549,7 @@ namespace PracticalPartCoursework
     {
         static void Main(string[] args)
         {
+            // Тестовое сообщение
             // Встановлюємо кодування UTF-8 для підтримки української мови
             Console.OutputEncoding = Encoding.UTF8;
             Console.InputEncoding = Encoding.UTF8;

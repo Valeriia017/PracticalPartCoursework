@@ -542,6 +542,101 @@ namespace PracticalPartCoursework
                 Console.WriteLine($"Помилка розшифрування: {ex.Message}");
             }
         }
+
+        // ЦИФРОВИЙ ПІДПИС
+        public void CreateDigitalSignature()
+        {
+            try
+            {
+                if (!File.Exists("private_key.txt"))
+                {
+                    Console.WriteLine("Приватний ключ не знайдено! Спочатку згенеруйте ключі.");
+                    return;
+                }
+
+                if (!File.Exists("input.txt"))
+                {
+                    Console.WriteLine("Файл input.txt не знайдено!");
+                    return;
+                }
+
+                // Завантажуємо приватний ключ
+                string privateKey = File.ReadAllText("private_key.txt", Encoding.UTF8);
+                rsa.FromXmlString(privateKey);
+
+                // Читаємо дані з файлу
+                byte[] data = File.ReadAllBytes("input.txt");
+
+                // Створюємо цифровий підпис
+                byte[] signature = rsa.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+
+                // Виводимо підпис на дисплей
+                Console.WriteLine("\n=== ЦИФРОВИЙ ПІДПИС ===");
+                Console.WriteLine("Підпис у форматі Base64:");
+                Console.WriteLine(Convert.ToBase64String(signature));
+
+                Console.WriteLine("\nПідпис у hex-форматі:");
+                Console.WriteLine(BitConverter.ToString(signature).Replace("-", ""));
+
+                // Зберігаємо підпис у файл
+                File.WriteAllText("signature.txt", Convert.ToBase64String(signature), Encoding.UTF8);
+                Console.WriteLine("\nПідпис збережено у файл signature.txt");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Помилка створення підпису: {ex.Message}");
+            }
+        }
+
+        public void VerifyDigitalSignature()
+        {
+            try
+            {
+                if (!File.Exists("public_key.txt"))
+                {
+                    Console.WriteLine("Публічний ключ не знайдено!");
+                    return;
+                }
+
+                if (!File.Exists("input.txt"))
+                {
+                    Console.WriteLine("Файл input.txt не знайдено!");
+                    return;
+                }
+
+                if (!File.Exists("signature.txt"))
+                {
+                    Console.WriteLine("Файл signature.txt не знайдено! Спочатку створіть підпис.");
+                    return;
+                }
+
+                // Завантажуємо публічний ключ
+                string publicKey = File.ReadAllText("public_key.txt", Encoding.UTF8);
+                rsa.FromXmlString(publicKey);
+
+                // Читаємо дані та підпис
+                byte[] data = File.ReadAllBytes("input.txt");
+                string signatureBase64 = File.ReadAllText("signature.txt", Encoding.UTF8);
+                byte[] signature = Convert.FromBase64String(signatureBase64);
+
+                // Перевіряємо підпис
+                bool isValid = rsa.VerifyData(data, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+
+                Console.WriteLine("\n=== ПЕРЕВІРКА ЦИФРОВОГО ПІДПИСУ ===");
+                if (isValid)
+                {
+                    Console.WriteLine("✅ Підпис ВАЛІДНИЙ - дані не змінювались");
+                }
+                else
+                {
+                    Console.WriteLine("❌ Підпис НЕВАЛІДНИЙ - дані було змінено!");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Помилка перевірки підпису: {ex.Message}");
+            }
+        }
     }
 
     // Головний клас програми
@@ -568,13 +663,19 @@ namespace PracticalPartCoursework
                 Console.WriteLine("4. Автентифікація (рукостискання)");
                 Console.WriteLine("5. Перевірити доступ до каталогу");
                 Console.WriteLine("6. Показати доступні каталоги");
+                Console.WriteLine("=== ШИФРУВАННЯ RSA ===");
                 Console.WriteLine("7. Генерація ключів RSA");
                 Console.WriteLine("8. Шифрування файлу");
                 Console.WriteLine("9. Розшифрування файлу");
+                Console.WriteLine("=== ЦИФРОВИЙ ПІДПИС ===");
+                Console.WriteLine("A. Створити цифровий підпис");
+                Console.WriteLine("B. Перевірити цифровий підпис");
                 Console.WriteLine("0. Вихід");
                 Console.Write("Виберіть опцію: ");
 
-                switch (Console.ReadLine())
+                string choice = Console.ReadLine()?.ToUpper();
+
+                switch (choice)
                 {
                     case "1": RegisterUser(securitySystem); break;
                     case "2": DeleteUser(securitySystem); break;
@@ -585,6 +686,8 @@ namespace PracticalPartCoursework
                     case "7": cryptoSystem.GenerateKeys(); break;
                     case "8": cryptoSystem.EncryptFile("input.txt", "close.txt"); break;
                     case "9": cryptoSystem.DecryptFile("close.txt", "out.txt"); break;
+                    case "A": cryptoSystem.CreateDigitalSignature(); break;
+                    case "B": cryptoSystem.VerifyDigitalSignature(); break;
                     case "0": securitySystem.StopPeriodicCheck(); return;
                     default: Console.WriteLine("Невірний вибір!"); break;
                 }
@@ -595,10 +698,8 @@ namespace PracticalPartCoursework
         {
             if (!File.Exists("input.txt"))
             {
-                string testText = @"Цей файл містить текст для перевірки роботи системи шифрування.
-Курсова робота з інформаційної безпеки.
-Система використовує алгоритм RSA для захисту даних.
-Шифрування працює коректно!";
+                string testText = @"Цей файл містить текст для перевірки роботи системи шифрування. Курсова робота з інформаційної безпеки.
+                   Система використовує алгоритм RSA для захисту даних.Шифрування працює коректно!";
 
                 File.WriteAllText("input.txt", testText, Encoding.UTF8);
                 Console.WriteLine("Створено тестовий файл input.txt");

@@ -84,7 +84,7 @@ namespace PracticalPartCoursework
     {
         private System.Timers.Timer timer;
         private SecuritySystem securitySystem;
-        private const int CHECK_INTERVAL = 10 * 1000; // T = 10 секунд
+        private const int CHECK_INTERVAL = 10 * 60 * 1000; // T = 10 хвилин у мілісекундах
         private Random random;
         private List<string> questions;
         private Dictionary<string, string> answers;
@@ -121,7 +121,7 @@ namespace PracticalPartCoursework
                 }
                 else
                 {
-                    // Автоматичне створення запитань з округленням до 1 знаку
+                    // Автоматичне створення запитань згідно з варіантом: F(X) = lg(a*x), a=4
                     questions.Add("2"); answers["2"] = Math.Round(Math.Log10(4 * 2), 1).ToString("0.0");
                     questions.Add("5"); answers["5"] = Math.Round(Math.Log10(4 * 5), 1).ToString("0.0");
                     questions.Add("10"); answers["10"] = Math.Round(Math.Log10(4 * 10), 1).ToString("0.0");
@@ -161,6 +161,7 @@ namespace PracticalPartCoursework
                 Console.WriteLine("\n=== ПЕРІОДИЧНА АВТЕНТИФІКАЦІЯ ===");
 
                 string randomQuestion = questions[random.Next(questions.Count)];
+                double x = double.Parse(randomQuestion);
                 Console.WriteLine($"Запит: X = {randomQuestion}");
                 Console.WriteLine($"Обчисліть Y = lg(4 * {randomQuestion})");
                 Console.Write("Ваша відповідь (один знак після коми): ");
@@ -317,8 +318,8 @@ namespace PracticalPartCoursework
                 return false;
             }
 
-            double expectedY = Math.Round(Math.Log10(A_CONSTANT * x), 1);
-            Console.WriteLine($"Введіть відповідь для X = {x}: Y = lg({A_CONSTANT} * {x})");
+            double expectedY = Math.Round(Math.Log10(A_CONSTANT * x), 1); // F(X) = lg(a*x)
+            Console.WriteLine($"Введіть відповідь для X = {x}: Y = lg(4 * {x})");
             Console.Write("Ваша відповідь (один знак після коми): ");
 
             if (double.TryParse(Console.ReadLine(), out double userAnswer))
@@ -449,11 +450,11 @@ namespace PracticalPartCoursework
     public class RSACryptoSystem
     {
         private RSACryptoServiceProvider rsa;
-        private const int KEY_SIZE = 64; // R = 64 десяткових знаків
+        private const int KEY_SIZE = 512; // 512 біт для 64 десяткових знаків
 
         public RSACryptoSystem()
         {
-            rsa = new RSACryptoServiceProvider(2048);
+            rsa = new RSACryptoServiceProvider(KEY_SIZE);
         }
 
         public void GenerateKeys()

@@ -84,7 +84,7 @@ namespace PracticalPartCoursework
     {
         private System.Timers.Timer timer;
         private SecuritySystem securitySystem;
-        private const int CHECK_INTERVAL = 10 * 60 * 1000; // T = 10 хвилин у мілісекундах
+        private const int CHECK_INTERVAL = 10 * 1000; // T = 10 секунд у мілісекундах
         private Random random;
         private List<string> questions;
         private Dictionary<string, string> answers;

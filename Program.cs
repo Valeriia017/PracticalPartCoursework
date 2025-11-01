@@ -626,11 +626,11 @@ namespace PracticalPartCoursework
                 Console.WriteLine("\n=== ПЕРЕВІРКА ЦИФРОВОГО ПІДПИСУ ===");
                 if (isValid)
                 {
-                    Console.WriteLine("✅ Підпис ВАЛІДНИЙ - дані не змінювались");
+                    Console.WriteLine("Підпис ВАЛІДНИЙ - дані не змінювались");
                 }
                 else
                 {
-                    Console.WriteLine("❌ Підпис НЕВАЛІДНИЙ - дані було змінено!");
+                    Console.WriteLine("Підпис НЕВАЛІДНИЙ - дані було змінено!");
                 }
             }
             catch (Exception ex)

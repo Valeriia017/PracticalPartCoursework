@@ -164,9 +164,18 @@ namespace PracticalPartCoursework
                 double x = double.Parse(randomQuestion);
                 Console.WriteLine($"Запит: X = {randomQuestion}");
                 Console.WriteLine($"Обчисліть Y = lg(4 * {randomQuestion})");
-                Console.Write("Ваша відповідь (один знак після коми): ");
+                Console.Write("Ваша відповідь (один знак після коми) або 'S' для пропуску: ");
 
                 string userAnswer = Console.ReadLine();
+
+                // Перевірка на пропуск
+                if (userAnswer?.ToUpper() == "S")
+                {
+                    Console.WriteLine("Перевірку пропущено! Доступ збережено.");
+                    securitySystem.LogActivity($"Пропущена автентифікація: {currentUser.Username}");
+                    return; // Просто виходимо з методу, не блокуємо користувача
+                }
+
                 string correctAnswer = answers[randomQuestion];
 
                 if (userAnswer?.Trim() == correctAnswer)
@@ -372,26 +381,49 @@ namespace PracticalPartCoursework
                     foreach (var line in lines)
                     {
                         var parts = line.Split(';');
-                        if (parts.Length >= 5)
+                        if (parts.Length >= 4)
                         {
-                            var user = new User
-                            {
-                                Username = parts[0],
-                                Password = parts[1],
-                                CatalogAccess = new Dictionary<string, string>(),
-                                RegistrationTime = DateTime.Parse(parts[2]),
-                                LastActivity = DateTime.Parse(parts[3]),
-                                PasswordExpiry = DateTime.Parse(parts[4])
-                            };
+                            // Новий формат: Користувач:user1; Пароль:1111; Реєстрація:06.11.2024; Дійсний до:06.12.2024; A=RWE; B=REA
+                            var user = new User();
 
-                            // Завантажуємо права до каталогів
-                            for (int i = 5; i < parts.Length; i += 2)
+                            foreach (var part in parts)
                             {
-                                if (i + 1 < parts.Length)
-                                    user.CatalogAccess[parts[i]] = parts[i + 1];
+                                var keyValue = part.Split(':');
+                                if (keyValue.Length >= 2)
+                                {
+                                    string key = keyValue[0].Trim();
+                                    string value = keyValue[1].Trim();
+
+                                    switch (key)
+                                    {
+                                        case "Користувач":
+                                            user.Username = value;
+                                            break;
+                                        case "Пароль":
+                                            user.Password = value;
+                                            break;
+                                        case "Реєстрація":
+                                            user.RegistrationTime = DateTime.Parse(value);
+                                            user.LastActivity = DateTime.Parse(value);
+                                            break;
+                                        case "Дійсний до":
+                                            user.PasswordExpiry = DateTime.Parse(value);
+                                            break;
+                                        default:
+                                            // Права доступу у форматі A=RWE
+                                            if (key.Length == 1 && "ABCDE".Contains(key))
+                                            {
+                                                if (user.CatalogAccess == null)
+                                                    user.CatalogAccess = new Dictionary<string, string>();
+                                                user.CatalogAccess[key] = value;
+                                            }
+                                            break;
+                                    }
+                                }
                             }
 
-                            users.Add(user);
+                            if (!string.IsNullOrEmpty(user.Username))
+                                users.Add(user);
                         }
                     }
                 }
@@ -411,19 +443,18 @@ namespace PracticalPartCoursework
                 {
                     var lineParts = new List<string>
                     {
-                        user.Username, user.Password,
-                        user.RegistrationTime.ToString(),
-                        user.LastActivity.ToString(),
-                        user.PasswordExpiry.ToString()
+                        $"Користувач:{user.Username}",
+                        $"Пароль:{user.Password}",
+                        $"Реєстрація:{user.RegistrationTime:dd.MM.yyyy}",
+                        $"Дійсний до:{user.PasswordExpiry:dd.MM.yyyy}"
                     };
 
                     foreach (var access in user.CatalogAccess)
                     {
-                        lineParts.Add(access.Key);
-                        lineParts.Add(access.Value);
+                        lineParts.Add($"{access.Key}={access.Value}");
                     }
 
-                    lines.Add(string.Join(";", lineParts));
+                    lines.Add(string.Join("; ", lineParts));
                 }
                 File.WriteAllLines("nameuser.txt", lines, Encoding.UTF8);
             }

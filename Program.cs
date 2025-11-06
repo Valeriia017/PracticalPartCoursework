@@ -13,10 +13,16 @@ namespace PracticalPartCoursework
     {
         public string Username { get; set; }
         public string Password { get; set; }
-        public Dictionary<string, string> CatalogAccess { get; set; } // Права доступу до каталогів A,B,C,D,E
+        public Dictionary<string, string> CatalogAccess { get; set; }
         public DateTime RegistrationTime { get; set; }
         public DateTime LastActivity { get; set; }
-        public DateTime PasswordExpiry { get; set; } // Безпечний час використання пароля
+        public DateTime PasswordExpiry { get; set; }
+
+        // Конструктор для ініціалізації словника
+        public User()
+        {
+            CatalogAccess = new Dictionary<string, string>();
+        }
     }
 
     // Клас для контролю доступу до каталогів
@@ -40,7 +46,7 @@ namespace PracticalPartCoursework
                 return false;
             }
 
-            if (!user.CatalogAccess.ContainsKey(catalog))
+            if (user.CatalogAccess == null || !user.CatalogAccess.ContainsKey(catalog))
             {
                 Console.WriteLine($"Користувач {user.Username} не має прав до каталогу {catalog}");
                 return false;
@@ -69,7 +75,7 @@ namespace PracticalPartCoursework
             Console.WriteLine("\n=== ДОСТУПНІ КАТАЛОГИ ===");
             foreach (var catalog in catalogRequirements)
             {
-                if (user.CatalogAccess.ContainsKey(catalog.Key) &&
+                if (user.CatalogAccess != null && user.CatalogAccess.ContainsKey(catalog.Key) &&
                     CheckAccess(user, catalog.Key))
                 {
                     Console.WriteLine($" Каталог {catalog.Key} - права: {user.CatalogAccess[catalog.Key]}");
@@ -168,7 +174,7 @@ namespace PracticalPartCoursework
 
                 string userAnswer = Console.ReadLine();
 
-                // Перевірка на пропуск
+                // Перевірка на пропуск - БЕЗ ОБМЕЖЕНЬ
                 if (userAnswer?.ToUpper() == "S")
                 {
                     Console.WriteLine("Перевірку пропущено! Доступ збережено.");
@@ -257,17 +263,26 @@ namespace PracticalPartCoursework
             {
                 Username = username,
                 Password = password,
-                CatalogAccess = catalogAccess,
+                CatalogAccess = catalogAccess ?? new Dictionary<string, string>(),
                 RegistrationTime = DateTime.Now,
                 LastActivity = DateTime.Now,
                 PasswordExpiry = DateTime.Now.AddDays(PASSWORD_VALIDITY_DAYS)
             };
 
-            users.Add(newUser);
-            SaveUsers();
-            LogActivity($"Зареєстровано: {username}");
-            Console.WriteLine($"Користувач {username} успішно зареєстрований");
-            return true;
+            try
+            {
+                users.Add(newUser);
+                SaveUsers();
+                LogActivity($"Зареєстровано: {username}");
+                Console.WriteLine($"Користувач {username} успішно зареєстрований");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Помилка збереження: {ex.Message}");
+                LogActivity($"Помилка реєстрації: {username} - {ex.Message}");
+                return false;
+            }
         }
 
         // Видалення користувача
@@ -375,24 +390,29 @@ namespace PracticalPartCoursework
         {
             try
             {
+                users = new List<User>(); // Ініціалізація списку
+
                 if (File.Exists("nameuser.txt"))
                 {
                     var lines = File.ReadAllLines("nameuser.txt", Encoding.UTF8);
                     foreach (var line in lines)
                     {
-                        var parts = line.Split(';');
-                        if (parts.Length >= 4)
+                        // Новий формат: Користувач:user1; Пароль:1111; Реєстрація:06.11.2024; Дійсний до:06.12.2024; Каталоги: A=RWE; B=REA; C=R; D=E; E=RE
+                        if (line.Contains("Користувач:"))
                         {
-                            // Новий формат: Користувач:user1; Пароль:1111; Реєстрація:06.11.2024; Дійсний до:06.12.2024; A=RWE; B=REA
                             var user = new User();
+
+                            // Розділяємо по крапці з комою, але з пробілом
+                            var parts = line.Split(new[] { "; " }, StringSplitOptions.RemoveEmptyEntries);
 
                             foreach (var part in parts)
                             {
-                                var keyValue = part.Split(':');
-                                if (keyValue.Length >= 2)
+                                // Шукаємо перше входження двокрапки для розділення ключа і значення
+                                int colonIndex = part.IndexOf(':');
+                                if (colonIndex > 0)
                                 {
-                                    string key = keyValue[0].Trim();
-                                    string value = keyValue[1].Trim();
+                                    string key = part.Substring(0, colonIndex).Trim();
+                                    string value = part.Substring(colonIndex + 1).Trim();
 
                                     switch (key)
                                     {
@@ -409,13 +429,21 @@ namespace PracticalPartCoursework
                                         case "Дійсний до":
                                             user.PasswordExpiry = DateTime.Parse(value);
                                             break;
-                                        default:
-                                            // Права доступу у форматі A=RWE
-                                            if (key.Length == 1 && "ABCDE".Contains(key))
+                                        case "Каталоги":
+                                            // Обробляємо каталоги у форматі A=RWE; B=REA; C=R
+                                            var catalogParts = value.Split(';');
+                                            foreach (var catalogPart in catalogParts)
                                             {
-                                                if (user.CatalogAccess == null)
-                                                    user.CatalogAccess = new Dictionary<string, string>();
-                                                user.CatalogAccess[key] = value;
+                                                var catalogKeyValue = catalogPart.Trim().Split('=');
+                                                if (catalogKeyValue.Length == 2)
+                                                {
+                                                    string catalogKey = catalogKeyValue[0].Trim();
+                                                    string catalogValue = catalogKeyValue[1].Trim();
+                                                    if ("ABCDE".Contains(catalogKey))
+                                                    {
+                                                        user.CatalogAccess[catalogKey] = catalogValue;
+                                                    }
+                                                }
                                             }
                                             break;
                                     }
@@ -449,9 +477,16 @@ namespace PracticalPartCoursework
                         $"Дійсний до:{user.PasswordExpiry:dd.MM.yyyy}"
                     };
 
-                    foreach (var access in user.CatalogAccess)
+                    if (user.CatalogAccess != null && user.CatalogAccess.Count > 0)
                     {
-                        lineParts.Add($"{access.Key}={access.Value}");
+                        // Формуємо рядок з каталогами: Каталоги: A=RWE; B=RWE; C=RWE; D=RWE; E=RWE
+                        var catalogParts = new List<string>();
+                        foreach (var access in user.CatalogAccess)
+                        {
+                            catalogParts.Add($"{access.Key}={access.Value}");
+                        }
+                        string catalogsString = string.Join("; ", catalogParts);
+                        lineParts.Add($"Каталоги: {catalogsString}");
                     }
 
                     lines.Add(string.Join("; ", lineParts));
@@ -468,8 +503,12 @@ namespace PracticalPartCoursework
         {
             try
             {
-                // Додаємо відступ згідно з вимогою
-                string logEntry = $"    {DateTime.Now:dd.MM.yyyy HH:mm:ss}: {activity}\n";
+                string username = currentUser?.Username ?? "SYSTEM";
+                string timestamp = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss");
+
+                // Форматування журналу у стовпчик
+                string logEntry = $"{timestamp} | {username,-15} | {activity}\n";
+
                 File.AppendAllText("us_book.txt", logEntry, Encoding.UTF8);
             }
             catch (Exception ex)
@@ -686,6 +725,15 @@ namespace PracticalPartCoursework
             RSACryptoSystem cryptoSystem = new RSACryptoSystem();
 
             CreateTestFiles();
+
+            // Додаємо заголовок до журналу при першому запуску
+            if (!File.Exists("us_book.txt"))
+            {
+                string header = "ЧАС                  | КОРИСТУВАЧ      | ПОДІЯ\n";
+                header += "===================================================\n";
+                File.WriteAllText("us_book.txt", header, Encoding.UTF8);
+            }
+
             securitySystem.StartPeriodicCheck();
 
             while (true)
@@ -722,7 +770,10 @@ namespace PracticalPartCoursework
                     case "9": cryptoSystem.DecryptFile("close.txt", "out.txt"); break;
                     case "A": cryptoSystem.CreateDigitalSignature(); break;
                     case "B": cryptoSystem.VerifyDigitalSignature(); break;
-                    case "0": securitySystem.StopPeriodicCheck(); return;
+                    case "0":
+                        securitySystem.StopPeriodicCheck();
+                        securitySystem.LogActivity("Завершення роботи системи");
+                        return;
                     default: Console.WriteLine("Невірний вибір!"); break;
                 }
             }

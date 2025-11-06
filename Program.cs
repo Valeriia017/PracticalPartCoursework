@@ -468,7 +468,9 @@ namespace PracticalPartCoursework
         {
             try
             {
-                File.AppendAllText("us_book.txt", $"{DateTime.Now}: {activity}\n", Encoding.UTF8);
+                // Додаємо відступ згідно з вимогою
+                string logEntry = $"    {DateTime.Now:dd.MM.yyyy HH:mm:ss}: {activity}\n";
+                File.AppendAllText("us_book.txt", logEntry, Encoding.UTF8);
             }
             catch (Exception ex)
             {

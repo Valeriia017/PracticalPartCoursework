@@ -34,7 +34,7 @@ namespace PracticalPartCoursework
             {"A", "RWE"},  // Максимальні права
             {"B", "REA"},   // Середні права (R,E,A)
             {"C", "R"},     // Мінімальні права (R)
-            {"D", "E"},     // Мінімальні права (E)  
+            {"D", "E"},     // Мінімальні права (E)
             {"E", "RE"}     // Середні права (R,E)
         };
 
@@ -85,59 +85,86 @@ namespace PracticalPartCoursework
         }
     }
 
-    // Клас для періодичної автентифікації
-    public class PeriodicAuthentication
+    public class Handshake
     {
-        private System.Timers.Timer timer;
-        private SecuritySystem securitySystem;
-        private const int CHECK_INTERVAL = 10 * 1000; // T = 10 секунд у мілісекундах
-        private Random random;
-        private List<string> questions;
-        private Dictionary<string, string> answers;
-        private DateTime lastSkipTime = DateTime.MinValue;
-        private const int SKIP_COOLDOWN_MINUTES = 1; // 1 хвилина захисту після пропуску
+        private readonly string _questionsPath;
+        private readonly TimeSpan _period;
+        private DateTime _lastValidationPassedAt;
+        private readonly List<(double X, double Y)> _questions = new();
+        private const double A_VALUE = 4.0;
 
-        public PeriodicAuthentication(SecuritySystem securitySys)
+        public Handshake(string questionsPath = "ask.txt", int periodSeconds = 10)
         {
-            securitySystem = securitySys;
-            random = new Random();
-            timer = new System.Timers.Timer(CHECK_INTERVAL);
-            timer.Elapsed += OnTimedEvent;
-            timer.AutoReset = true;
-            LoadQuestions();
+            _questionsPath = questionsPath;
+            _period = TimeSpan.FromSeconds(periodSeconds);
+            _lastValidationPassedAt = DateTime.Now;
+
+            _EnsureQuestionsFile();
+            _LoadQuestions();
         }
 
-        private void LoadQuestions()
+        private void _EnsureQuestionsFile()
         {
-            questions = new List<string>();
-            answers = new Dictionary<string, string>();
+            if (!File.Exists(_questionsPath))
+            {
+                var defaultQuestions = new List<(double X, double Y)>
+                {
+                    (2, 0.9),
+                    (5, 1.3),
+                    (10, 1.6),
+                    (8, 1.5),
+                    (15, 1.8)
+                };
 
+                using (var writer = new StreamWriter(_questionsPath, false, Encoding.UTF8))
+                {
+                    writer.WriteLine("# x|y — значення для перевірки автентичності (Y = lg(4*x))");
+                    foreach (var (x, y) in defaultQuestions)
+                        writer.WriteLine($"{x}|{y:F1}");
+                }
+            }
+        }
+
+        public bool ShouldAuthenticate()
+        {
+            return DateTime.Now - _lastValidationPassedAt >= _period;
+        }
+
+        private void _LoadQuestions()
+        {
             try
             {
-                if (File.Exists("ask.txt"))
+                if (!File.Exists(_questionsPath))
+                    throw new FileNotFoundException("Файл ask.txt не знайдено.");
+
+                var lines = File.ReadAllLines(_questionsPath, Encoding.UTF8);
+
+                foreach (var line in lines)
                 {
-                    var lines = File.ReadAllLines("ask.txt", Encoding.UTF8);
-                    foreach (var line in lines)
+                    var trimmed = line.Trim();
+                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
+                        continue;
+
+                    try
                     {
-                        var parts = line.Split('|');
-                        if (parts.Length >= 2)
+                        var parts = trimmed.Split('|');
+                        if (parts.Length != 2)
+                            continue;
+
+                        if (double.TryParse(parts[0], out double x) &&
+                            double.TryParse(parts[1], out double y))
                         {
-                            questions.Add(parts[0].Trim());
-                            answers[parts[0].Trim()] = parts[1].Trim();
+                            _questions.Add((x, y));
                         }
                     }
+                    catch
+                    {
+                        continue;
+                    }
                 }
-                else
-                {
-                    // Автоматичне створення запитань згідно з варіантом: F(X) = lg(a*x), a=4
-                    questions.Add("2"); answers["2"] = Math.Round(Math.Log10(4 * 2), 1).ToString("0.0");
-                    questions.Add("5"); answers["5"] = Math.Round(Math.Log10(4 * 5), 1).ToString("0.0");
-                    questions.Add("10"); answers["10"] = Math.Round(Math.Log10(4 * 10), 1).ToString("0.0");
-                    questions.Add("8"); answers["8"] = Math.Round(Math.Log10(4 * 8), 1).ToString("0.0");
-                    questions.Add("15"); answers["15"] = Math.Round(Math.Log10(4 * 15), 1).ToString("0.0");
 
-                    SaveQuestions();
-                }
+                if (_questions.Count == 0)
+                    throw new InvalidOperationException("Файл ask.txt порожній або має неправильний формат.");
             }
             catch (Exception ex)
             {
@@ -145,68 +172,43 @@ namespace PracticalPartCoursework
             }
         }
 
-        private void SaveQuestions()
+        public bool PerformAuthentication(User user)
         {
-            try
+            if (_questions.Count == 0)
             {
-                var lines = questions.Select(q => $"{q}|{answers[q]}");
-                File.WriteAllLines("ask.txt", lines, Encoding.UTF8);
+                Console.WriteLine("Запитання відсутні.");
+                return false;
             }
-            catch (Exception ex)
+
+            var rnd = new Random();
+            var (x, y) = _questions[rnd.Next(_questions.Count)];
+
+            Console.WriteLine($"\nПеревірка автентичності для користувача [{user.Username}]");
+            Console.WriteLine($"Введіть значення Y = lg(4 * {x})");
+            Console.Write("Ваша відповідь: ");
+
+            string input = Console.ReadLine();
+
+            if (string.IsNullOrWhiteSpace(input))
+                return false;
+
+            if (!double.TryParse(input.Replace('.', ','), out double yUser))
             {
-                Console.WriteLine($"Помилка збереження запитань: {ex.Message}");
+                Console.WriteLine("Невірний формат числа.");
+                return false;
             }
-        }
 
-        public void Start() => timer.Start();
-        public void Stop() => timer.Stop();
+            bool isPassed = Math.Abs(Math.Round(yUser, 1) - Math.Round(y, 1)) < 0.01;
 
-        private void OnTimedEvent(object sender, ElapsedEventArgs e)
-        {
-            var currentUser = securitySystem.GetCurrentUser();
-            if (currentUser != null && questions.Count > 0)
+            if (isPassed)
             {
-                // Перевіряємо, чи не минула 1 хвилина після останнього пропуску
-                if (DateTime.Now.Subtract(lastSkipTime).TotalMinutes < SKIP_COOLDOWN_MINUTES)
-                {
-                    Console.WriteLine($"\n=== ПЕРІОДИЧНА АВТЕНТИФІКАЦІЯ === (пропущено - захист на {SKIP_COOLDOWN_MINUTES} хв)");
-                    return; // Пропускаємо перевірку
-                }
-
-                Console.WriteLine("\n=== ПЕРІОДИЧНА АВТЕНТИФІКАЦІЯ ===");
-
-                string randomQuestion = questions[random.Next(questions.Count)];
-                double x = double.Parse(randomQuestion);
-                Console.WriteLine($"Запит: X = {randomQuestion}");
-                Console.WriteLine($"Обчисліть Y = lg(4 * {randomQuestion})");
-                Console.Write("Ваша відповідь (один знак після коми) або 'S' для пропуску: ");
-
-                string userAnswer = Console.ReadLine();
-
-                // Перевірка на пропуск
-                if (userAnswer?.ToUpper() == "S")
-                {
-                    Console.WriteLine("Перевірку пропущено! Наступна перевірка буде через 1 хвилину.");
-                    lastSkipTime = DateTime.Now;
-                    securitySystem.LogActivity($"Пропущена автентифікація: {currentUser.Username}");
-                    return;
-                }
-
-                string correctAnswer = answers[randomQuestion];
-
-                if (userAnswer?.Trim() == correctAnswer)
-                {
-                    Console.WriteLine("Автентифікація успішна! Доступ збережено.");
-                    securitySystem.LogActivity($"Успішна автентифікація: {currentUser.Username}");
-                }
-                else
-                {
-                    Console.WriteLine($"Невірна відповідь! Очікувалось: {correctAnswer}");
-                    Console.WriteLine("Доступ заблоковано!");
-                    securitySystem.LogActivity($"Невдала автентифікація: {currentUser.Username}. Доступ заблоковано.");
-                    securitySystem.LogoutUser();
-                }
+                _lastValidationPassedAt = DateTime.Now;
+                Console.WriteLine("Автентифікацію пройдено.");
+                return true;
             }
+
+            Console.WriteLine($"Автентифікацію не пройдено. Очікувалось: {y:F1}");
+            return false;
         }
     }
 
@@ -219,7 +221,6 @@ namespace PracticalPartCoursework
         private const double A_CONSTANT = 4; // a = 4
         private string adminPassword = "admin123";
         private AccessControlSystem accessControl;
-        private PeriodicAuthentication periodicAuth;
         private User currentUser;
 
         public SecuritySystem()
@@ -231,13 +232,9 @@ namespace PracticalPartCoursework
             users = new List<User>();
             accessControl = new AccessControlSystem();
             LoadUsers();
-            periodicAuth = new PeriodicAuthentication(this);
         }
 
         public User GetCurrentUser() => currentUser;
-
-        public void StartPeriodicCheck() => periodicAuth.Start();
-        public void StopPeriodicCheck() => periodicAuth.Stop();
 
         public void LogoutUser()
         {
@@ -732,12 +729,14 @@ namespace PracticalPartCoursework
 
             SecuritySystem securitySystem = new SecuritySystem();
             RSACryptoSystem cryptoSystem = new RSACryptoSystem();
+            Handshake handshake = new Handshake();
 
             CreateTestFiles();
-            securitySystem.StartPeriodicCheck();
 
             while (true)
             {
+                var currentUser = securitySystem.GetCurrentUser();
+
                 Console.WriteLine("\n=== СИСТЕМА БЕЗПЕКИ ===");
                 Console.WriteLine("1. Реєстрація користувача (адмін)");
                 Console.WriteLine("2. Видалення користувача (адмін)");
@@ -757,6 +756,17 @@ namespace PracticalPartCoursework
 
                 string choice = Console.ReadLine()?.ToUpper();
 
+                if (currentUser != null && handshake.ShouldAuthenticate())
+                {
+                    bool passed = handshake.PerformAuthentication(currentUser);
+                    if (!passed)
+                    {
+                        Console.WriteLine("Автентифікацію не пройдено. Вас буде розлогінено.");
+                        securitySystem.LogoutUser();
+                        continue;
+                    }
+                }
+
                 switch (choice)
                 {
                     case "1": RegisterUser(securitySystem); break;
@@ -771,7 +781,6 @@ namespace PracticalPartCoursework
                     case "A": cryptoSystem.CreateDigitalSignature(); break;
                     case "B": cryptoSystem.VerifyDigitalSignature(); break;
                     case "0":
-                        securitySystem.StopPeriodicCheck();
                         securitySystem.LogActivity("Завершення роботи системи");
                         return;
                     default: Console.WriteLine("Невірний вибір!"); break;

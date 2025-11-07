@@ -94,6 +94,8 @@ namespace PracticalPartCoursework
         private Random random;
         private List<string> questions;
         private Dictionary<string, string> answers;
+        private DateTime lastSkipTime = DateTime.MinValue;
+        private const int SKIP_COOLDOWN_MINUTES = 1; // 1 хвилина захисту після пропуску
 
         public PeriodicAuthentication(SecuritySystem securitySys)
         {
@@ -164,6 +166,13 @@ namespace PracticalPartCoursework
             var currentUser = securitySystem.GetCurrentUser();
             if (currentUser != null && questions.Count > 0)
             {
+                // Перевіряємо, чи не минула 1 хвилина після останнього пропуску
+                if (DateTime.Now.Subtract(lastSkipTime).TotalMinutes < SKIP_COOLDOWN_MINUTES)
+                {
+                    Console.WriteLine($"\n=== ПЕРІОДИЧНА АВТЕНТИФІКАЦІЯ === (пропущено - захист на {SKIP_COOLDOWN_MINUTES} хв)");
+                    return; // Пропускаємо перевірку
+                }
+
                 Console.WriteLine("\n=== ПЕРІОДИЧНА АВТЕНТИФІКАЦІЯ ===");
 
                 string randomQuestion = questions[random.Next(questions.Count)];
@@ -174,12 +183,13 @@ namespace PracticalPartCoursework
 
                 string userAnswer = Console.ReadLine();
 
-                // Перевірка на пропуск - БЕЗ ОБМЕЖЕНЬ
+                // Перевірка на пропуск
                 if (userAnswer?.ToUpper() == "S")
                 {
-                    Console.WriteLine("Перевірку пропущено! Доступ збережено.");
+                    Console.WriteLine("Перевірку пропущено! Наступна перевірка буде через 1 хвилину.");
+                    lastSkipTime = DateTime.Now;
                     securitySystem.LogActivity($"Пропущена автентифікація: {currentUser.Username}");
-                    return; // Просто виходимо з методу, не блокуємо користувача
+                    return;
                 }
 
                 string correctAnswer = answers[randomQuestion];
@@ -238,15 +248,15 @@ namespace PracticalPartCoursework
             }
         }
 
-        // 1. Реєстрація користувача (тільки адміністратор)
-        public bool RegisterUser(string adminPass, string username, string password, Dictionary<string, string> catalogAccess)
+        // Метод для перевірки пароля адміністратора
+        public bool CheckAdminPassword(string password)
         {
-            if (adminPass != adminPassword)
-            {
-                Console.WriteLine("Невірний пароль адміністратора!");
-                return false;
-            }
+            return password == adminPassword;
+        }
 
+        // 1. Реєстрація користувача (тільки адміністратор)
+        public bool RegisterUser(string username, string password, Dictionary<string, string> catalogAccess)
+        {
             if (users.Count >= MAX_USERS)
             {
                 Console.WriteLine($"Досягнуто максимум користувачів: {MAX_USERS}");
@@ -286,14 +296,8 @@ namespace PracticalPartCoursework
         }
 
         // Видалення користувача
-        public bool DeleteUser(string adminPass, string username)
+        public bool DeleteUser(string username)
         {
-            if (adminPass != adminPassword)
-            {
-                Console.WriteLine("Невірний пароль адміністратора!");
-                return false;
-            }
-
             var user = users.FirstOrDefault(u => u.Username == username);
             if (user == null)
             {
@@ -397,7 +401,7 @@ namespace PracticalPartCoursework
                     var lines = File.ReadAllLines("nameuser.txt", Encoding.UTF8);
                     foreach (var line in lines)
                     {
-                        // Новий формат: Користувач:user1; Пароль:1111; Реєстрація:06.11.2024; Дійсний до:06.12.2024; Каталоги: A=RWE; B=REA; C=R; D=E; E=RE
+                        // Новий формат: Користувач:user1; Пароль:1111; Реєстрація:06.11.2024; Дійсний до:06.12.2024; Каталоги: A=R; B=R; C=R; D=R; E=R
                         if (line.Contains("Користувач:"))
                         {
                             var user = new User();
@@ -430,7 +434,7 @@ namespace PracticalPartCoursework
                                             user.PasswordExpiry = DateTime.Parse(value);
                                             break;
                                         case "Каталоги":
-                                            // Обробляємо каталоги у форматі A=RWE; B=REA; C=R
+                                            // Обробляємо каталоги у форматі A=R; B=R; C=R; D=R; E=R
                                             var catalogParts = value.Split(';');
                                             foreach (var catalogPart in catalogParts)
                                             {
@@ -477,17 +481,22 @@ namespace PracticalPartCoursework
                         $"Дійсний до:{user.PasswordExpiry:dd.MM.yyyy}"
                     };
 
-                    if (user.CatalogAccess != null && user.CatalogAccess.Count > 0)
+                    // Завжди вказуємо всі каталоги A, B, C, D, E навіть якщо права = 0
+                    var catalogParts = new List<string>();
+                    string[] allCatalogs = { "A", "B", "C", "D", "E" };
+
+                    foreach (string catalog in allCatalogs)
                     {
-                        // Формуємо рядок з каталогами: Каталоги: A=RWE; B=RWE; C=RWE; D=RWE; E=RWE
-                        var catalogParts = new List<string>();
-                        foreach (var access in user.CatalogAccess)
+                        string rights = "0"; // за замовчуванням немає прав
+                        if (user.CatalogAccess != null && user.CatalogAccess.ContainsKey(catalog))
                         {
-                            catalogParts.Add($"{access.Key}={access.Value}");
+                            rights = user.CatalogAccess[catalog];
                         }
-                        string catalogsString = string.Join("; ", catalogParts);
-                        lineParts.Add($"Каталоги: {catalogsString}");
+                        catalogParts.Add($"{catalog}={rights}");
                     }
+
+                    string catalogsString = string.Join("; ", catalogParts);
+                    lineParts.Add($"Каталоги: {catalogsString}");
 
                     lines.Add(string.Join("; ", lineParts));
                 }
@@ -506,10 +515,10 @@ namespace PracticalPartCoursework
                 string username = currentUser?.Username ?? "SYSTEM";
                 string timestamp = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss");
 
-                // Форматування журналу у стовпчик
-                string logEntry = $"{timestamp} | {username,-15} | {activity}\n";
+                // Новий формат журналу: кожна подія в окремому рядку
+                string logEntry = $"Час: {timestamp}; Користувач: {username}; Подія: {activity};";
 
-                File.AppendAllText("us_book.txt", logEntry, Encoding.UTF8);
+                File.AppendAllText("us_book.txt", logEntry + Environment.NewLine, Encoding.UTF8);
             }
             catch (Exception ex)
             {
@@ -725,15 +734,6 @@ namespace PracticalPartCoursework
             RSACryptoSystem cryptoSystem = new RSACryptoSystem();
 
             CreateTestFiles();
-
-            // Додаємо заголовок до журналу при першому запуску
-            if (!File.Exists("us_book.txt"))
-            {
-                string header = "ЧАС                  | КОРИСТУВАЧ      | ПОДІЯ\n";
-                header += "===================================================\n";
-                File.WriteAllText("us_book.txt", header, Encoding.UTF8);
-            }
-
             securitySystem.StartPeriodicCheck();
 
             while (true)
@@ -795,6 +795,14 @@ namespace PracticalPartCoursework
         {
             Console.Write("Пароль адміністратора: ");
             string adminPass = Console.ReadLine();
+
+            // МИТТЄВА перевірка пароля адміністратора
+            if (!securitySystem.CheckAdminPassword(adminPass))
+            {
+                Console.WriteLine("Невірний пароль адміністратора!");
+                return; // Виходимо з методу, не продовжуючи реєстрацію
+            }
+
             Console.Write("Ім'я користувача: ");
             string username = Console.ReadLine();
             Console.Write("Пароль: ");
@@ -802,26 +810,36 @@ namespace PracticalPartCoursework
 
             var accessRights = new Dictionary<string, string>();
             string[] catalogs = { "A", "B", "C", "D", "E" };
-            string[] defaults = { "RWE", "REA", "R", "E", "RE" };
 
-            Console.WriteLine("Вкажіть права доступу (напр., RWE):");
-            for (int i = 0; i < catalogs.Length; i++)
+            Console.WriteLine("Вкажіть права доступу для кожного каталогу (R-читання, W-запис, E-виконання, A-додавання, M-зміна, 0-немає прав):");
+            foreach (string catalog in catalogs)
             {
-                Console.Write($"Каталог {catalogs[i]} [за замовч.: {defaults[i]}]: ");
+                Console.Write($"Каталог {catalog}: ");
                 string rights = Console.ReadLine();
-                accessRights[catalogs[i]] = string.IsNullOrEmpty(rights) ? defaults[i] : rights.ToUpper();
+                accessRights[catalog] = string.IsNullOrEmpty(rights) ? "0" : rights.ToUpper();
             }
 
-            securitySystem.RegisterUser(adminPass, username, password, accessRights);
+            // Викликаємо метод без пароля адміністратора, оскільки вже перевірили
+            securitySystem.RegisterUser(username, password, accessRights);
         }
 
         static void DeleteUser(SecuritySystem securitySystem)
         {
             Console.Write("Пароль адміністратора: ");
             string adminPass = Console.ReadLine();
+
+            // МИТТЄВА перевірка пароля адміністратора
+            if (!securitySystem.CheckAdminPassword(adminPass))
+            {
+                Console.WriteLine("Невірний пароль адміністратора!");
+                return; // Виходимо з методу, не продовжуючи видалення
+            }
+
             Console.Write("Ім'я користувача для видалення: ");
             string username = Console.ReadLine();
-            securitySystem.DeleteUser(adminPass, username);
+
+            // Викликаємо метод без пароля адміністратора, оскільки вже перевірили
+            securitySystem.DeleteUser(username);
         }
 
         static void LoginUser(SecuritySystem securitySystem)

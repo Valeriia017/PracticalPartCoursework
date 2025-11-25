@@ -270,11 +270,19 @@ namespace PracticalPartCoursework
             {
                 Username = username,
                 Password = password,
-                CatalogAccess = catalogAccess ?? new Dictionary<string, string>(),
                 RegistrationTime = DateTime.Now,
                 LastActivity = DateTime.Now,
                 PasswordExpiry = DateTime.Now.AddDays(PASSWORD_VALIDITY_DAYS)
             };
+
+            // ВИПРАВЛЕННЯ: Копіюємо всі права доступу з переданого словника
+            if (catalogAccess != null)
+            {
+                foreach (var access in catalogAccess)
+                {
+                    newUser.CatalogAccess[access.Key] = access.Value;
+                }
+            }
 
             try
             {

@@ -11,17 +11,17 @@ namespace PracticalPartCoursework
     // Клас для зберігання даних користувача
     public class User
     {
-        public string Username { get; set; }
-        public string Password { get; set; }
-        public Dictionary<string, string> CatalogAccess { get; set; }
-        public DateTime RegistrationTime { get; set; }
-        public DateTime LastActivity { get; set; }
-        public DateTime PasswordExpiry { get; set; }
+        public string Username { get; set; }  // Ім'я користувача
+        public string Password { get; set; }  // Пароль користувача
+        public Dictionary<string, string> CatalogAccess { get; set; }  // Права доступу до каталогів A,B,C,D,E
+        public DateTime RegistrationTime { get; set; }  // Час реєстрації
+        public DateTime LastActivity { get; set; }  // Час останньої активності
+        public DateTime PasswordExpiry { get; set; }  // Термін дії пароля
 
         // Конструктор для ініціалізації словника
         public User()
         {
-            CatalogAccess = new Dictionary<string, string>();
+            CatalogAccess = new Dictionary<string, string>(); // Створюємо порожній словник для прав доступу
         }
     }
 
@@ -29,33 +29,38 @@ namespace PracticalPartCoursework
     public class AccessControlSystem
     {
         // Визначаємо 3 рівні доступу (S=3) для каталогів A,B,C,D,E
+        // Кожен каталог має мінімальні необхідні права для доступу
         private Dictionary<string, string> catalogRequirements = new Dictionary<string, string>
         {
-            {"A", "RWE"},  // Максимальні права
-            {"B", "REA"},   // Середні права (R,E,A)
-            {"C", "R"},     // Мінімальні права (R)
-            {"D", "E"},     // Мінімальні права (E)
-            {"E", "RE"}     // Середні права (R,E)
+            {"A", "RWE"},  // Максимальні права - читання, запис, виконання
+            {"B", "REA"},   // Середні права - читання, виконання, додавання
+            {"C", "R"},     // Мінімальні права - тільки читання
+            {"D", "E"},    // Мінімальні права - тільки виконання
+            {"E", "RE"}     // Середні права - читання, виконання
         };
 
+        // Метод перевірки доступу користувача до каталогу
         public bool CheckAccess(User user, string catalog)
         {
+            // Перевіряємо, чи існує такий каталог
             if (!catalogRequirements.ContainsKey(catalog))
             {
                 Console.WriteLine($"Каталог {catalog} не існує");
                 return false;
             }
 
+            // Перевіряємо, чи є у користувача права до цього каталогу
             if (user.CatalogAccess == null || !user.CatalogAccess.ContainsKey(catalog))
             {
                 Console.WriteLine($"Користувач {user.Username} не має прав до каталогу {catalog}");
                 return false;
             }
 
-            string userRights = user.CatalogAccess[catalog];
-            string requiredRights = catalogRequirements[catalog];
+            string userRights = user.CatalogAccess[catalog];   // Права користувача
+            string requiredRights = catalogRequirements[catalog];    // Необхідні права
 
             // Перевіряємо, чи є у користувача необхідні права
+            // Порівнюємо кожен необхідний символ з правами користувача
             foreach (char right in requiredRights)
             {
                 if (!userRights.Contains(right))
@@ -75,6 +80,7 @@ namespace PracticalPartCoursework
             Console.WriteLine("\n=== ДОСТУПНІ КАТАЛОГИ ===");
             foreach (var catalog in catalogRequirements)
             {
+                // Перевіряємо доступ до кожного каталогу і показуємо тільки доступні
                 if (user.CatalogAccess != null && user.CatalogAccess.ContainsKey(catalog.Key) &&
                     CheckAccess(user, catalog.Key))
                 {
@@ -85,51 +91,58 @@ namespace PracticalPartCoursework
         }
     }
 
+    // Клас для періодичної автентифікації (рукостискання)
     public class Handshake
     {
-        private readonly string _questionsPath;
-        private readonly TimeSpan _period;
-        private DateTime _lastValidationPassedAt;
-        private readonly List<(double X, double Y)> _questions = new();
-        private const double A_VALUE = 4.0;
+        private readonly string _questionsPath;  // Шлях до файлу з питаннями
+        private readonly TimeSpan _period;       // Період перевірки (T=10 секунд)
+        private DateTime _lastValidationPassedAt;// Час останньої успішної перевірки
+        private readonly List<(double X, double Y)> _questions = new();// Список питань X-Y
+        private const double A_VALUE = 4.0;      // Коефіцієнт a=4 для функції F(X)=lg(a*x)
 
         public Handshake(string questionsPath = "ask.txt", int periodSeconds = 10)
         {
             _questionsPath = questionsPath;
-            _period = TimeSpan.FromSeconds(periodSeconds);
+            _period = TimeSpan.FromSeconds(periodSeconds);// T=10 секунд
             _lastValidationPassedAt = DateTime.Now;
 
-            _EnsureQuestionsFile();
-            _LoadQuestions();
+            _EnsureQuestionsFile();// Створюємо файл питань, якщо не існує
+            _LoadQuestions();// Завантажуємо питання з файлу
+
         }
 
+        // Створюємо файл з питаннями, якщо він не існує
         private void _EnsureQuestionsFile()
         {
             if (!File.Exists(_questionsPath))
             {
+                // Стандартні питання для математичної автентифікації
                 var defaultQuestions = new List<(double X, double Y)>
                 {
-                    (2, 0.9),
-                    (5, 1.3),
-                    (10, 1.6),
-                    (8, 1.5),
-                    (15, 1.8)
+                    (2, 0.9),   // lg(4*2) = lg(8) ≈ 0.9
+                    (5, 1.3),   // lg(4*5) = lg(20) ≈ 1.3
+                    (10, 1.6),  // lg(4*10) = lg(40) ≈ 1.6
+                    (8, 1.5),   // lg(4*8) = lg(32) ≈ 1.5
+                    (15, 1.8)   // lg(4*15) = lg(60) ≈ 1.8
                 };
 
+                // Записуємо питання у файл
                 using (var writer = new StreamWriter(_questionsPath, false, Encoding.UTF8))
                 {
                     writer.WriteLine("# x|y — значення для перевірки автентичності (Y = lg(4*x))");
                     foreach (var (x, y) in defaultQuestions)
-                        writer.WriteLine($"{x}|{y:F1}");
+                        writer.WriteLine($"{x}|{y:F1}"); // Формат: X|Y з одним знаком після коми
                 }
             }
         }
 
+        // Перевіряємо, чи потрібна автентифікація (кожні T секунд)
         public bool ShouldAuthenticate()
         {
             return DateTime.Now - _lastValidationPassedAt >= _period;
         }
 
+        // Завантажуємо питання з файлу
         private void _LoadQuestions()
         {
             try
@@ -142,15 +155,16 @@ namespace PracticalPartCoursework
                 foreach (var line in lines)
                 {
                     var trimmed = line.Trim();
-                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
+                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#")) // Пропускаємо коментарі
                         continue;
 
                     try
                     {
-                        var parts = trimmed.Split('|');
+                        var parts = trimmed.Split('|'); // Розділяємо на X і Y
                         if (parts.Length != 2)
                             continue;
 
+                        // Парсимо числа та додаємо до списку питань
                         if (double.TryParse(parts[0], out double x) &&
                             double.TryParse(parts[1], out double y))
                         {
@@ -159,7 +173,7 @@ namespace PracticalPartCoursework
                     }
                     catch
                     {
-                        continue;
+                        continue; // Пропускаємо помилкові рядки
                     }
                 }
 
@@ -172,6 +186,7 @@ namespace PracticalPartCoursework
             }
         }
 
+        // Виконуємо автентифікацію користувача
         public bool PerformAuthentication(User user)
         {
             if (_questions.Count == 0)
@@ -180,11 +195,12 @@ namespace PracticalPartCoursework
                 return false;
             }
 
+            // Вибираємо випадкове питання
             var rnd = new Random();
             var (x, y) = _questions[rnd.Next(_questions.Count)];
 
             Console.WriteLine($"\nПеревірка автентичності для користувача [{user.Username}]");
-            Console.WriteLine($"Введіть значення Y = lg(4 * {x})");
+            Console.WriteLine($"Введіть значення Y = lg(4 * {x})"); // F(X) = lg(4*x)
             Console.Write("Ваша відповідь: ");
 
             string input = Console.ReadLine();
@@ -192,17 +208,19 @@ namespace PracticalPartCoursework
             if (string.IsNullOrWhiteSpace(input))
                 return false;
 
+            // Конвертуємо введену відповідь в число (замінюємо крапку на кому)
             if (!double.TryParse(input.Replace('.', ','), out double yUser))
             {
                 Console.WriteLine("Невірний формат числа.");
                 return false;
             }
 
+            // Порівнюємо відповідь з правильною (з невеликою похибкою)
             bool isPassed = Math.Abs(Math.Round(yUser, 1) - Math.Round(y, 1)) < 0.01;
 
             if (isPassed)
             {
-                _lastValidationPassedAt = DateTime.Now;
+                _lastValidationPassedAt = DateTime.Now; // Оновлюємо час останньої перевірки
                 Console.WriteLine("Автентифікацію пройдено.");
                 return true;
             }
@@ -215,13 +233,13 @@ namespace PracticalPartCoursework
     // Основний клас системи
     public class SecuritySystem
     {
-        private List<User> users;
-        private const int MAX_USERS = 8; // N = 8
+        private List<User> users; // Список всіх користувачів
+        private const int MAX_USERS = 8; // N = 8 (максимальна кількість користувачів)
         private const int PASSWORD_VALIDITY_DAYS = 30; // Безпечний час використання пароля
-        private const double A_CONSTANT = 4; // a = 4
-        private string adminPassword = "admin123";
-        private AccessControlSystem accessControl;
-        private User currentUser;
+        private const double A_CONSTANT = 4; // a = 4 (коефіцієнт для математичної функції)
+        private string adminPassword = "admin123"; // Пароль адміністратора
+        private AccessControlSystem accessControl; // Система контролю доступу
+        private User currentUser; // Система контролю доступу
 
         public SecuritySystem()
         {
@@ -231,51 +249,55 @@ namespace PracticalPartCoursework
 
             users = new List<User>();
             accessControl = new AccessControlSystem();
-            LoadUsers();
+            LoadUsers(); // Завантажуємо користувачів з файлу
         }
 
-        public User GetCurrentUser() => currentUser;
+        public User GetCurrentUser() => currentUser; // Отримуємо поточного користувача
 
+        // Виходимо з системи
         public void LogoutUser()
         {
             if (currentUser != null)
             {
                 LogActivity($"Вихід з системи: {currentUser.Username}");
-                currentUser = null;
+                currentUser = null; // Скидаємо поточного користувача
             }
         }
 
         // Метод для перевірки пароля адміністратора
         public bool CheckAdminPassword(string password)
         {
-            return password == adminPassword;
+            return password == adminPassword; 
         }
 
         // 1. Реєстрація користувача (тільки адміністратор)
         public bool RegisterUser(string username, string password, Dictionary<string, string> catalogAccess)
         {
+            // Перевіряємо, чи не перевищено максимальну кількість користувачів
             if (users.Count >= MAX_USERS)
             {
                 Console.WriteLine($"Досягнуто максимум користувачів: {MAX_USERS}");
                 return false;
             }
 
+            // Перевіряємо, чи не існує вже користувач з таким іменем
             if (users.Any(u => u.Username == username))
             {
                 Console.WriteLine("Користувач вже існує!");
                 return false;
             }
 
+            // Створюємо нового користувача
             var newUser = new User
             {
                 Username = username,
                 Password = password,
                 RegistrationTime = DateTime.Now,
                 LastActivity = DateTime.Now,
-                PasswordExpiry = DateTime.Now.AddDays(PASSWORD_VALIDITY_DAYS)
+                PasswordExpiry = DateTime.Now.AddDays(PASSWORD_VALIDITY_DAYS) // Пароль дійсний 30 днів
             };
 
-            // ВИПРАВЛЕННЯ: Копіюємо всі права доступу з переданого словника
+            // Копіюємо всі права доступу з переданого словника
             if (catalogAccess != null)
             {
                 foreach (var access in catalogAccess)
@@ -287,7 +309,7 @@ namespace PracticalPartCoursework
             try
             {
                 users.Add(newUser);
-                SaveUsers();
+                SaveUsers(); // Зберігаємо зміни у файл
                 LogActivity($"Зареєстровано: {username}");
                 Console.WriteLine($"Користувач {username} успішно зареєстрований");
                 return true;
@@ -311,19 +333,21 @@ namespace PracticalPartCoursework
             }
 
             users.Remove(user);
-            SaveUsers();
+            SaveUsers(); // Зберігаємо зміни
             LogActivity($"Видалено: {username}");
             Console.WriteLine($"Користувач {username} видалений");
             return true;
         }
 
-        // 2. Ідентифікація користувача
+        // 2. Ідентифікація користувача (вхід в систему)
         public bool IdentifyUser(string username, string password)
         {
+            // Шукаємо користувача з відповідним іменем і паролем
             var user = users.FirstOrDefault(u => u.Username == username && u.Password == password);
 
             if (user != null)
             {
+                // Перевіряємо, чи не вийшов термін дії пароля
                 if (user.PasswordExpiry < DateTime.Now)
                 {
                     Console.WriteLine("Термін дії пароля вийшов! Змініть пароль.");
@@ -331,9 +355,9 @@ namespace PracticalPartCoursework
                     return false;
                 }
 
-                user.LastActivity = DateTime.Now;
-                currentUser = user;
-                SaveUsers();
+                user.LastActivity = DateTime.Now; // Оновлюємо час активності
+                currentUser = user; // Встановлюємо поточного користувача
+                SaveUsers(); // Зберігаємо зміни
                 LogActivity($"Успішний вхід: {username}");
                 return true;
             }
@@ -342,7 +366,7 @@ namespace PracticalPartCoursework
             return false;
         }
 
-        // 3. Автентифікація (рукостискання)
+        // 3. Автентифікація (рукостискання) - математична перевірка
         public bool AuthenticateUser(double x)
         {
             if (currentUser == null)
@@ -359,6 +383,7 @@ namespace PracticalPartCoursework
             {
                 double roundedUserAnswer = Math.Round(userAnswer, 1);
 
+                // Порівнюємо з правильною відповіддю (допустима похибка 0.05)
                 if (Math.Abs(roundedUserAnswer - expectedY) < 0.05)
                 {
                     currentUser.LastActivity = DateTime.Now;
@@ -373,7 +398,7 @@ namespace PracticalPartCoursework
             return false;
         }
 
-        // Робота з каталогами
+        // Перевірка доступу до конкретного каталогу
         public void CheckCatalogAccess(string catalog)
         {
             if (currentUser == null)
@@ -384,6 +409,7 @@ namespace PracticalPartCoursework
             accessControl.CheckAccess(currentUser, catalog);
         }
 
+        // Показуємо доступні каталоги
         public void ShowAvailableCatalogs()
         {
             if (currentUser == null)
@@ -394,7 +420,7 @@ namespace PracticalPartCoursework
             accessControl.ShowAvailableCatalogs(currentUser);
         }
 
-        // Робота з файлами
+        // Завантажуємо користувачів з файлу nameuser.txt
         private void LoadUsers()
         {
             try
@@ -411,7 +437,7 @@ namespace PracticalPartCoursework
                         {
                             var user = new User();
 
-                            // Розділяємо по крапці з комою, але з пробілом
+                            // Розділяємо рядок на частини по "; "
                             var parts = line.Split(new[] { "; " }, StringSplitOptions.RemoveEmptyEntries);
 
                             foreach (var part in parts)
@@ -423,6 +449,7 @@ namespace PracticalPartCoursework
                                     string key = part.Substring(0, colonIndex).Trim();
                                     string value = part.Substring(colonIndex + 1).Trim();
 
+                                    // Розпізнаємо тип даних та заповнюємо об'єкт користувача
                                     switch (key)
                                     {
                                         case "Користувач":
@@ -448,7 +475,7 @@ namespace PracticalPartCoursework
                                                 {
                                                     string catalogKey = catalogKeyValue[0].Trim();
                                                     string catalogValue = catalogKeyValue[1].Trim();
-                                                    if ("ABCDE".Contains(catalogKey))
+                                                    if ("ABCDE".Contains(catalogKey)) // Перевіряємо коректність каталогу
                                                     {
                                                         user.CatalogAccess[catalogKey] = catalogValue;
                                                     }
@@ -471,6 +498,7 @@ namespace PracticalPartCoursework
             }
         }
 
+        // Зберігаємо користувачів у файл nameuser.txt
         private void SaveUsers()
         {
             try
@@ -478,6 +506,7 @@ namespace PracticalPartCoursework
                 var lines = new List<string>();
                 foreach (var user in users)
                 {
+                    // Формуємо рядок з даними користувача
                     var lineParts = new List<string>
                     {
                         $"Користувач:{user.Username}",
@@ -502,7 +531,8 @@ namespace PracticalPartCoursework
 
                     string catalogsString = string.Join("; ", catalogParts);
                     lineParts.Add($"Каталоги: {catalogsString}");
-
+                    
+                    // Об'єднуємо всі частини в один рядок
                     lines.Add(string.Join("; ", lineParts));
                 }
                 File.WriteAllLines("nameuser.txt", lines, Encoding.UTF8);
@@ -513,11 +543,12 @@ namespace PracticalPartCoursework
             }
         }
 
+        // Логування дій у файл us_book.txt
         public void LogActivity(string activity)
         {
             try
             {
-                string username = currentUser?.Username ?? "SYSTEM";
+                string username = currentUser?.Username ?? "SYSTEM"; // Якщо немає користувача - SYSTEM
                 string timestamp = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss");
 
                 // Новий формат журналу: кожна подія в окремому рядку
@@ -535,25 +566,28 @@ namespace PracticalPartCoursework
     // Система шифрування RSA
     public class RSACryptoSystem
     {
-        private RSACryptoServiceProvider rsa;
+        private RSACryptoServiceProvider rsa;  // Об'єкт для роботи з RSA
         private const int KEY_SIZE = 512; // 512 біт для 64 десяткових знаків
 
         public RSACryptoSystem()
         {
-            rsa = new RSACryptoServiceProvider(KEY_SIZE);
+            rsa = new RSACryptoServiceProvider(KEY_SIZE);  // Створюємо RSA провайдер
         }
 
+        // Генерація пари ключів RSA
         public void GenerateKeys()
         {
-            string publicKey = rsa.ToXmlString(false);
-            string privateKey = rsa.ToXmlString(true);
+            string publicKey = rsa.ToXmlString(false); // Відкритий ключ (без закритої частини)
+            string privateKey = rsa.ToXmlString(true); // Закритий ключ (повна інформація)
 
+            // Зберігаємо ключі у файли
             File.WriteAllText("public_key.txt", publicKey, Encoding.UTF8);
             File.WriteAllText("private_key.txt", privateKey, Encoding.UTF8);
 
             Console.WriteLine("Ключі RSA згенеровано (64 десяткових знаків)");
         }
 
+        // Шифрування файлу за допомогою публічного ключа
         public void EncryptFile(string inputFile, string outputFile)
         {
             try
@@ -564,14 +598,16 @@ namespace PracticalPartCoursework
                     return;
                 }
 
+                // Завантажуємо публічний ключ
                 string publicKey = File.ReadAllText("public_key.txt", Encoding.UTF8);
                 rsa.FromXmlString(publicKey);
 
                 byte[] data = File.ReadAllBytes(inputFile);
-                int keySize = rsa.KeySize / 8;
-                int blockSize = keySize - 42;
+                int keySize = rsa.KeySize / 8; // Розмір ключа в байтах
+                int blockSize = keySize - 42; // Розмір блоку для шифрування (з урахуванням padding)
                 int blocksCount = (int)Math.Ceiling((double)data.Length / blockSize);
 
+                // Шифруємо файл по блокам
                 using (var outputStream = new FileStream(outputFile, FileMode.Create))
                 {
                     for (int i = 0; i < blocksCount; i++)
@@ -580,6 +616,7 @@ namespace PracticalPartCoursework
                         byte[] block = new byte[length];
                         Array.Copy(data, i * blockSize, block, 0, length);
 
+                        // Шифруємо блок даних
                         byte[] encryptedBlock = rsa.Encrypt(block, false);
                         outputStream.Write(encryptedBlock, 0, encryptedBlock.Length);
                     }
@@ -593,6 +630,7 @@ namespace PracticalPartCoursework
             }
         }
 
+        // Розшифрування файлу за допомогою приватного ключа
         public void DecryptFile(string inputFile, string outputFile)
         {
             try
@@ -603,23 +641,25 @@ namespace PracticalPartCoursework
                     return;
                 }
 
+                // Завантажуємо приватний ключ
                 string privateKey = File.ReadAllText("private_key.txt", Encoding.UTF8);
                 rsa.FromXmlString(privateKey);
 
                 byte[] encryptedData = File.ReadAllBytes(inputFile);
                 int keySize = rsa.KeySize / 8;
                 int blocksCount = encryptedData.Length / keySize;
-
+                
+                // Розшифровуємо файл по блокам
                 using (var outputStream = new MemoryStream())
                 {
                     for (int i = 0; i < blocksCount; i++)
                     {
                         byte[] block = new byte[keySize];
                         Array.Copy(encryptedData, i * keySize, block, 0, keySize);
-                        byte[] decryptedBlock = rsa.Decrypt(block, false);
+                        byte[] decryptedBlock = rsa.Decrypt(block, false); // Розшифровуємо блок
                         outputStream.Write(decryptedBlock, 0, decryptedBlock.Length);
                     }
-                    File.WriteAllBytes(outputFile, outputStream.ToArray());
+                    File.WriteAllBytes(outputFile, outputStream.ToArray()); // Зберігаємо розшифрований файл
                 }
 
                 Console.WriteLine("Файл розшифровано");
@@ -630,7 +670,7 @@ namespace PracticalPartCoursework
             }
         }
 
-        // ЦИФРОВИЙ ПІДПИС
+        // ЦИФРОВИЙ ПІДПИС - створення підпису для файлу
         public void CreateDigitalSignature()
         {
             try
@@ -675,6 +715,7 @@ namespace PracticalPartCoursework
             }
         }
 
+        // Перевірка цифрового підпису
         public void VerifyDigitalSignature()
         {
             try
@@ -701,12 +742,12 @@ namespace PracticalPartCoursework
                 string publicKey = File.ReadAllText("public_key.txt", Encoding.UTF8);
                 rsa.FromXmlString(publicKey);
 
-                // Читаємо дані та підпис
+                // Читаємо оригінальні дані та підпис
                 byte[] data = File.ReadAllBytes("input.txt");
                 string signatureBase64 = File.ReadAllText("signature.txt", Encoding.UTF8);
                 byte[] signature = Convert.FromBase64String(signatureBase64);
 
-                // Перевіряємо підпис
+                // Перевіряємо підпис публічним ключем
                 bool isValid = rsa.VerifyData(data, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
                 Console.WriteLine("\n=== ПЕРЕВІРКА ЦИФРОВОГО ПІДПИСУ ===");
@@ -735,16 +776,18 @@ namespace PracticalPartCoursework
             Console.OutputEncoding = Encoding.UTF8;
             Console.InputEncoding = Encoding.UTF8;
 
+            // Створюємо об'єкти систем
             SecuritySystem securitySystem = new SecuritySystem();
             RSACryptoSystem cryptoSystem = new RSACryptoSystem();
             Handshake handshake = new Handshake();
 
             CreateTestFiles();
 
+            // Головний цикл програми
             while (true)
             {
                 var currentUser = securitySystem.GetCurrentUser();
-
+                // Виводимо головне меню
                 Console.WriteLine("\n=== СИСТЕМА БЕЗПЕКИ ===");
                 Console.WriteLine("1. Реєстрація користувача (адмін)");
                 Console.WriteLine("2. Видалення користувача (адмін)");
@@ -764,6 +807,7 @@ namespace PracticalPartCoursework
 
                 string choice = Console.ReadLine()?.ToUpper();
 
+                // Перевіряємо, чи потрібна періодична автентифікація
                 if (currentUser != null && handshake.ShouldAuthenticate())
                 {
                     bool passed = handshake.PerformAuthentication(currentUser);
@@ -775,6 +819,7 @@ namespace PracticalPartCoursework
                     }
                 }
 
+                // Обробляємо вибір користувача
                 switch (choice)
                 {
                     case "1": RegisterUser(securitySystem); break;
@@ -796,6 +841,7 @@ namespace PracticalPartCoursework
             }
         }
 
+        // Створюємо тестові файли, якщо вони не існують
         static void CreateTestFiles()
         {
             if (!File.Exists("input.txt"))
@@ -808,6 +854,7 @@ namespace PracticalPartCoursework
             }
         }
 
+        // Метод реєстрації нового користувача (тільки для адміністратора)
         static void RegisterUser(SecuritySystem securitySystem)
         {
             Console.Write("Пароль адміністратора: ");
@@ -825,14 +872,15 @@ namespace PracticalPartCoursework
             Console.Write("Пароль: ");
             string password = Console.ReadLine();
 
-            var accessRights = new Dictionary<string, string>();
-            string[] catalogs = { "A", "B", "C", "D", "E" };
+            var accessRights = new Dictionary<string, string>();  // Словник для прав доступу
+            string[] catalogs = { "A", "B", "C", "D", "E" }; // Всі доступні каталоги
 
             Console.WriteLine("Вкажіть права доступу для кожного каталогу (R-читання, W-запис, E-виконання, A-додавання, M-зміна, 0-немає прав):");
             foreach (string catalog in catalogs)
             {
                 Console.Write($"Каталог {catalog}: ");
                 string rights = Console.ReadLine();
+                // Якщо користувач нічого не ввів - ставимо "0" (немає прав)
                 accessRights[catalog] = string.IsNullOrEmpty(rights) ? "0" : rights.ToUpper();
             }
 
@@ -840,6 +888,7 @@ namespace PracticalPartCoursework
             securitySystem.RegisterUser(username, password, accessRights);
         }
 
+        // Метод видалення користувача (тільки для адміністратора)
         static void DeleteUser(SecuritySystem securitySystem)
         {
             Console.Write("Пароль адміністратора: ");
@@ -859,18 +908,21 @@ namespace PracticalPartCoursework
             securitySystem.DeleteUser(username);
         }
 
+        // Метод входу користувача в систему
         static void LoginUser(SecuritySystem securitySystem)
         {
             Console.Write("Ім'я: ");
             string username = Console.ReadLine();
             Console.Write("Пароль: ");
             string password = Console.ReadLine();
+            // Спроба ідентифікації користувача
             if (securitySystem.IdentifyUser(username, password))
                 Console.WriteLine("Вхід успішний!");
             else
                 Console.WriteLine("Невірні дані!");
         }
 
+        // Метод математичної автентифікації (рукостискання)
         static void AuthenticateUser(SecuritySystem securitySystem)
         {
             if (securitySystem.GetCurrentUser() == null)
@@ -878,6 +930,7 @@ namespace PracticalPartCoursework
                 Console.WriteLine("Спочатку увійдіть!");
                 return;
             }
+            // Генеруємо випадкове число X для математичної задачі
             Random rand = new Random();
             securitySystem.AuthenticateUser(rand.Next(1, 100));
         }
